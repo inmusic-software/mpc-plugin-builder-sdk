@@ -338,6 +338,12 @@ Rules:
   callback). That is the normal case and is correct for continuous
   parameters. The "coarse" increment is the data wheel; "fine" is the data
   wheel with Shift.
+- **Do not give replacementStrings to a parameter that an `Envelope` widget
+  draws (6.13).** Tested on MPC OS 3.10.1: with replacementStrings on a 0–99
+  parameter, every level from 1 to 99 draws at the top of the graph, and a
+  rate changes the graph only at its maximum. Without them the same envelope
+  draws correctly. Knobs, film-strip `Image`s and radio `Button` groups work
+  correctly with replacementStrings.
 
 ### 3.4 info (OffsetInfo)
 
@@ -884,7 +890,7 @@ Text: the parameter's name, its current value string, or fixed text.
 | `version` | int | exactly `1` | |
 | `textStyle` | TextStyleData | | Font, colour, justification, case. |
 | `type` | enum | `"Name"`, `"Value"`, `"Text"` | `Name` shows the bound parameter's name; `Value` its display string (or the `replacementStrings` label); `Text` shows the `text` key. |
-| `handleName` | handle | `"Data"` | Ignored for `Text`, but must still be present (use `"Invalid"` or `"Data"`). |
+| `handleName` | handle | `"Data"` | Required for every type. **A `Text` label draws its text only when this handle resolves to a real parameter** (see the hardware rules below). |
 | `text` | string | only when `type` is `"Text"` | The fixed text. |
 
 Key order: `version, textStyle, type, handleName, [text]`.
@@ -928,13 +934,30 @@ Fixed text:
   "version": 1,
   "textStyle": {"version": 1, "font": {"version": 1, "name": "Roboto", "style": "Light", "height": 22.0}, "colour": "ff6a6a6c", "justification": "horizontallyCentred verticallyCentred", "case": "Original"},
   "type": "Text",
-  "handleName": "Invalid",
+  "handleName": "Parameter 0",
   "text": "FILTER"
 }
 ```
 
 Binds to: a parameter handle for `Name` and `Value`. Labels do not edit the
 value and do not take focus; set `acceptsHWFocus: "No"` on their entry.
+
+Hardware rules (tested on MPC OS 3.10.1 with a diagnostic plugin):
+
+- **A `Text` label needs a handle that resolves to a parameter.** With
+  `"Parameter 0"` (or any `Parameter N`, or `"Data"` remapped to one) the
+  `text` is drawn. With `"Invalid"`, or with `"Data"` that no handle remapping
+  binds, nothing is drawn. The value of the bound parameter does not matter;
+  the label still shows its fixed `text`.
+- **A visible label takes the touches inside its bounds.** A label on top of a
+  `Button` (later in `componentsData`) blocks every tap on the part of the
+  button it covers. This is true with or without text: a label with an
+  unbound handle and `showWhenDataModelInvalid: "Show"` draws nothing but
+  still blocks the taps. A label that the MPC hides (an unbound handle with
+  `"Hide"`) lets the taps through, but it also shows no text.
+- So a caption cannot be a label on top of a button. Draw the caption into
+  the button's `onImage` / `offImage`, or put the label beside the button
+  where the bounds do not overlap.
 
 ### 6.4 Button (well-trodden)
 
@@ -1314,6 +1337,36 @@ An ADSR envelope bound to four parameters:
 Binds to: one parameter per stage. Dragging a stage handle edits that
 parameter. The exact per-type key presence is subtle; if a file with an
 `Envelope` fails to load, the stage-handle set is the first thing to check.
+
+Do not give the bound parameters `replacementStrings` (3.3): the graph then
+stops following the values.
+
+**Worked example: a DX7-style 4-rate / 4-level EG with `Pitch`** (tested on
+MPC OS 3.10.1). The `Pitch` type draws a start level, three segments to three
+levels, a sustain hold and a release segment back to the start level. That is
+the DX7 envelope: L4 → R1 → L1 → R2 → L2 → R3 → L3 (hold) → R4 → L4. Bind
+the rates through the `Invert/` modifier (7.2), so that a higher rate draws a
+shorter segment. With rate parameters `R1..R4` and level parameters `L1..L4`
+(all 0–99 ints, no replacementStrings):
+
+```json
+"pitchEnvelopeLevel1Handle": "Parameter L4",
+"pitchEnvelopeDelayHandle": "Invert/Parameter R1",
+"pitchEnvelopeLevel2Handle": "Parameter L1",
+"pitchEnvelopeAttackHandle": "Invert/Parameter R2",
+"pitchEnvelopeLevel3Handle": "Parameter L2",
+"pitchEnvelopeDecayHandle": "Invert/Parameter R3",
+"pitchEnvelopeSustainHandle": "Parameter L3",
+"pitchEnvelopeReleaseHandle": "Invert/Parameter R4",
+"pitchEnvelopeLevel5Handle": "Parameter L4",
+"forceHideShapeHandles": true
+```
+
+Replace `R1` … `L4` with the parameter indices. Level 0 draws at the bottom,
+99 at the top. Each segment is at most one fifth of the widget width, and the
+sustain hold has a fixed width. The `Pitch` type fills the area between the
+line and the centre line, not the area under the line; set `fillColour` to
+`"00000000"` if that looks wrong for an amplitude envelope.
 
 ### 6.14 XYPad (less tested)
 
@@ -2217,6 +2270,10 @@ check on hardware.
   does not match a column-major layout.
 - `replacementStrings` keys must name the parameter index the control
   actually resolves to (after any `PartialDescription` offset).
+- A label on top of a button blocks the taps on it, and a `Text` label with an
+  unbound handle draws nothing (6.3). Captions go into the button images.
+- An `Envelope` bound to parameters that have `replacementStrings` does not
+  follow their values (6.13).
 - `ComboBox` shows an empty list for VST parameters; use `replacementStrings`
   plus `MenuOverlay` instead.
 - `Meter`, `Plotter` and `HaloDisplay` can only be driven from a parameter the

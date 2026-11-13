@@ -51,7 +51,8 @@ Create `plugins/<Name>/skins/` containing `TUI.json`, `Q-Links.json` and any ima
 - Every object has an integer `version` the MPC checks; wrong versions or a missing key make the **whole file fail**, and the plugin then shows no tabs at all.
 - `"Parameter N"` handles are 0-based parameter indices; `Q-Links.json` `Tab`/`SubTab` are 1-based; knob values are 0-based indices or -1.
 - Overlay widgets need the documented duplicate `version` keys; do not "fix" them.
-- Film-strip frames and button images are drawn at their native pixel size, never scaled: size the entry bounds to the asset. Labels do not intercept touches, so captions can sit over buttons.
+- Film-strip frames and button images are drawn at their native pixel size, never scaled: size the entry bounds to the asset. Never put a `Label` on top of a `Button`: a visible label takes the taps (tested on MPC OS 3.10.1). Draw captions into the button images or place them beside the button. A `Text` label shows its text only when its `handleName` resolves to a parameter (`"Parameter 0"` works; `"Invalid"` and an unbound `"Data"` draw nothing).
+- Never give `replacementStrings` to parameters bound to an `Envelope` widget: the graph then stops following the values. A DX7-style 4-rate / 4-level EG works with `envelopeType: "Pitch"` and `Invert/` rate handles (`docs/ui-reference.md` 6.13).
 - Tab area is 1280 × 628; overlays 1280 × 800; fonts Titillium Web / Roboto / Nexa only; images PNG/JPEG relative to the file; colours `AARRGGBB`.
 - Run `python tools/validate.py plugins/<Name>` after editing; it checks versions, indices, image presence and JSON validity.
 
