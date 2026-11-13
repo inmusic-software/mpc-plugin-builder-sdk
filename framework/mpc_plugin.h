@@ -558,6 +558,10 @@ public:
         const Program& p = programs_[(size_t)i];
         for (int k = 0; k < numParams() && k < (int)p.plainValues.size(); ++k) set(k, p.plainValues[(size_t)k]);
         stateLoadPending_.store(true, std::memory_order_release);
+        // The MPC caches parameter values for its UI and does not re-read them after a program change,
+        // so report every value and ask it to refresh, or the screen keeps showing the previous program.
+        for (int k = 0; k < numParams(); ++k) notifyHostParameterChanged(k);
+        requestDisplayUpdate();
     }
 
     std::string displayText(int i)
