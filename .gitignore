@@ -8,6 +8,8 @@ dist/
 # Users' own plugin projects live here; the SDK repo only tracks the placeholder
 plugins/*
 !plugins/.gitkeep
+!plugins/KENZFLX/
+!plugins/KENZFLX/**
 
 # Python
 __pycache__/

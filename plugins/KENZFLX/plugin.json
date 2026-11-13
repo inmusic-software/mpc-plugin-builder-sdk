@@ -1,0 +1,17 @@
+{
+  "name": "KENZFLX",
+  "manufacturer": "KENZ",
+  "version": "1.0.0",
+  "format": "vst2",
+  "kind": "effect",
+  "uid": "KFVB",
+  "numInputs": 2,
+  "numOutputs": 2,
+  "category": "Effect",
+  "file32": "VST/kenzflx-arm32.so",
+  "file64": "VST/kenzflx-arm64.so",
+  "description": "Stereo multi-effect with drive, modulation, delay, reverb, bit-crush and tempo-slice processing.",
+  "author": "KENZ",
+  "url": "",
+  "license": "MIT"
+}
