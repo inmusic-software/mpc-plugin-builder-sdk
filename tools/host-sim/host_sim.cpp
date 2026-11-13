@@ -705,6 +705,22 @@ static std::vector<std::string> orderedDistinct(const std::vector<std::string>& 
 static ParamKind inferParamKind(AEffect* e, int i)
 {
     ParamKind pk;
+
+    // A plugin that declares a parameter continuous (properties answered, neither a switch nor
+    // integer-stepped, which is how the SDK framework reports Float parameters) is float, whatever
+    // its display text looks like. Probing alone misreads a continuous parameter whose text is
+    // state-dependent, e.g. a time knob that shows note divisions while tempo-synced.
+    {
+        VstParameterProperties props;
+        std::memset(&props, 0, sizeof(props));
+        if (disp(e, effGetParameterProperties, i, 0, &props) == 1
+            && (props.flags & (kVstParameterIsSwitch | kVstParameterUsesIntStep)) == 0)
+        {
+            pk.kind = "float";
+            return pk;
+        }
+    }
+
     float original = getParam(e, i);
 
     std::vector<std::string> fine32 = probeDisplays(e, i, 32);

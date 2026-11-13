@@ -616,12 +616,16 @@ def tab_component(page, style):
                               "Yes", "Hide", "Always", remap=[("Data", ctl.param.handle)], invalidating=invalidating))
         if ctl.definition.startswith("radio"):
             # Segment captions live in the tab (the definition is shared by every n-way switch).
+            # Bind each caption to the switch's parameter: with "Hide" and no bound handle the
+            # data model is always invalid and the MPC never draws the caption. Bound, it shows
+            # and still hides together with the switch under visibleWhen.
             width, xs = SEGMENTS[len(ctl.param.choices)]
             for ci, (choice, x) in enumerate(zip(ctl.param.choices, xs)):
                 children.append(entry("%s seg %d" % (ctl.param.name, ci), "Label",
                                       label_data("Text", style["text"], 22.0, "horizontallyCentred verticallyCentred", choice),
                                       "%d %d %d 40" % (SLOT_X[col] + x, SLOT_Y[row] + 54, width),
-                                      "No", "Hide", "Always", invalidating=invalidating))
+                                      "No", "Hide", "Always", remap=[("Data", ctl.param.handle)],
+                                      invalidating=invalidating))
     return component_definition([], children, style["background"])
 
 
