@@ -55,6 +55,15 @@ The library could not be loaded or returned nothing. Causes: wrong architecture 
 **The plugin loads but the edit screen has no tabs**
 `TUI.json` failed to parse. Common causes: a `version` number the MPC does not accept, a missing required key, a trailing comma. `tools/validate.py` checks the generated skins; for hand-written ones compare against `docs/ui-reference.md`.
 
+**Buttons do not respond to taps, or respond only on part of the button**
+A `Label` lies on top of the button. A visible label takes the touches inside its bounds, with or without text. Move the label so it does not overlap the button, or draw the caption into the button images. See `docs/ui-reference.md` 6.3. A Q-Link that changes the same parameter still works, which tells this fault apart from a wrong parameter index.
+
+**Fixed text (captions, headings) does not show**
+A `Text` label draws its text only when its `handleName` resolves to a parameter. `"Invalid"`, or `"Data"` without a handle remapping, draws nothing. Use `"Parameter 0"` or the parameter the label describes. See `docs/ui-reference.md` 6.3.
+
+**An envelope graph does not follow its knobs (levels jump to the top, rates change only at the maximum)**
+The parameters bound to the `Envelope` have `replacementStrings`. Remove those entries for the envelope parameters. See `docs/ui-reference.md` 3.3 and 6.13.
+
 **Controls are there but the knobs move the wrong parameter**
 `Q-Links.json` indices are 0-based parameter indices and `Tab` numbers are 1-based. The parameter order is the order of `addParam` calls in your constructor; `build/params.json` shows the indices the MPC sees.
 

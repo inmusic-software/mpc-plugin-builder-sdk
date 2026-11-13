@@ -75,8 +75,8 @@ with frame 0 (minimum) at the top; 127 frames puts the bipolar centre on frame 6
 | `fader_h_uni.png`, `fader_h_bi.png` | 248 × 36 | 127 | `Knob`, `knobType: "FilmStrip"`, version 3, `dragOrientation: "Horizontal"` |
 | `fader_v_uni.png`, `fader_v_bi.png` | 36 × 160 | 127 | `Knob`, `knobType: "FilmStrip"` (vertical drag, the default) |
 | `toggle_on.png`, `toggle_off.png` | 64 × 32 | 1 | `Button`, `numButtonsInGroup: 1`, `buttonId: 1` |
-| `button_on.png`, `button_off.png` | 120 × 44 | 1 | `Button`; put a `Label` on top for the caption |
-| `seg2_*.png`, `seg3_*.png`, `seg4_*.png` | 122 / 80 / 58 × 40 | 1 | `Button` radio group (`numButtonsInGroup: n`, `buttonId: 0..n-1`) with a `Label` caption each |
+| `button_on.png`, `button_off.png` | 120 × 44 | 1 | `Button`; the caption goes beside it or into a copy of the image, never in a `Label` on top (see below) |
+| `seg2_*.png`, `seg3_*.png`, `seg4_*.png` | 122 / 80 / 58 × 40 | 1 | `Button` radio group (`numButtonsInGroup: n`, `buttonId: 0..n-1`); captions as for `button_*` |
 
 A horizontal fader entry:
 
@@ -90,8 +90,11 @@ A toggle entry (lit when the bool is on):
 {"version": 2, "onImage": "toggle_on.png", "offImage": "toggle_off.png", "buttonId": 1, "numButtonsInGroup": 1, "handleName": "Data", "gestureBehaviour": "Instant"}
 ```
 
-Labels do not intercept touches, so a caption `Label` can sit over a button. `kit.json` in
-the rendered folder lists every asset's size and the theme colours, for layouts that want
+Do not put a caption `Label` on top of a button. On the MPC (tested on MPC OS 3.10.1), a
+visible label takes the touches inside its bounds, so the button stops responding. A `Text`
+label also draws nothing unless its `handleName` resolves to a parameter. Put the label beside
+the button, or draw the caption into the button images (`docs/ui-reference.md` 6.3). `kit.json`
+in the rendered folder lists every asset's size and the theme colours, for layouts that want
 to match them.
 
 ## Hardware notes

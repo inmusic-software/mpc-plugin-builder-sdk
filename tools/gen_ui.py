@@ -63,6 +63,11 @@ BIPOLAR_ZERO_RE = re.compile(r"^[+-]?0*(\.0+)?\s*[^0-9.]*$")
 
 # Segment buttons for choice switches: (asset width, x positions in the slot) per choice count.
 SEGMENTS = {2: (122, [15, 141]), 3: (80, [15, 99, 183]), 4: (58, [15, 77, 139, 201])}
+# Choice switch rows inside the 107 px slot: name 4..34, captions 34..62, segments 62..102. On the MPC a
+# visible label takes the taps inside its bounds, so the captions must not overlap the segments.
+CAPTION_Y, SEGMENT_Y = 34, 62
+# A Text label draws nothing unless its handle resolves to a parameter; parameter 0 always exists.
+TEXT_HANDLE = "Parameter 0"
 
 
 def slot_qlink(row, col):
@@ -485,12 +490,13 @@ def button_data(on_image, off_image, button_id, group_size):
                ("numButtonsInGroup", group_size), ("handleName", "Data"), ("gestureBehaviour", "Instant"))
 
 
-def label_data(label_type, colour, height=30.0, justification="left", text=None):
+def label_data(label_type, colour, height=30.0, justification="left", text=None, handle="Data"):
+    """A Text label draws its text only when `handle` resolves to a parameter (tested on MPC OS 3.10.1)."""
     pairs = [("version", 1),
              ("textStyle", obj(("version", 1),
                                ("font", obj(("version", 1), ("name", FONT_NAME), ("style", "Regular"), ("height", float(height)))),
                                ("colour", colour), ("justification", justification), ("case", "Original"))),
-             ("type", label_type), ("handleName", "Data")]
+             ("type", label_type), ("handleName", handle)]
     if text is not None:
         pairs.append(("text", text))
     return Obj(pairs)
@@ -579,13 +585,14 @@ def toggle_component(style, overlay_name):
 
 
 def radio_component(style, overlay_name, n):
-    """An n-way choice switch: name on top, n segment buttons below (their captions are added by the tab)."""
+    """An n-way choice switch: name on top, n segment buttons at the bottom. The tab adds a caption
+    above each segment (CAPTION_Y); a label must never overlap a button, or it takes the taps."""
     width, xs = SEGMENTS[n]
     children = [focus_child(style),
-                entry("name", "Label", label_data("Name", style["muted"], 24.0), "15 8 248 34", "No", "Show", "Always")]
+                entry("name", "Label", label_data("Name", style["muted"], 22.0), "15 4 248 30", "No", "Show", "Always")]
     for i, x in enumerate(xs):
         children.append(entry("seg %d" % i, "Button", button_data("seg%d_on.png" % n, "seg%d_off.png" % n, i, n),
-                              "%d 54 %d 40" % (x, width), "No", "Show", "Always"))
+                              "%d %d %d 40" % (x, SEGMENT_Y, width), "No", "Show", "Always"))
     return component_definition(control_actions(overlay_name, double_click=False), children, "00000000")
 
 
@@ -608,20 +615,25 @@ def tab_component(page, style):
             invalidating = ["IndexedEnabling/%d/%d/%s" % (idx, len(vp.choices), vp.handle)]
         if ctl.widget == "empty":
             continue
+        show = "Hide" if invalidating else "Show"
         if ctl.widget == "text":
-            children.append(entry("text %d" % i, "Label", label_data("Text", style["text"], 30.0, "left", ctl.text),
-                                  bounds, "No", "Show", "Always", invalidating=invalidating))
+            children.append(entry("text %d" % i, "Label",
+                                  label_data("Text", style["text"], 30.0, "left", ctl.text, TEXT_HANDLE),
+                                  bounds, "No", show, "Always", invalidating=invalidating))
             continue
         children.append(entry(ctl.param.name, ctl.definition, obj(("version", 1), ("handleName", "Data")), bounds,
                               "Yes", "Hide", "Always", remap=[("Data", ctl.param.handle)], invalidating=invalidating))
         if ctl.definition.startswith("radio"):
-            # Segment captions live in the tab (the definition is shared by every n-way switch).
+            # Segment captions live in the tab (the definition is shared by every n-way switch). They sit
+            # above the segments, bound to the parameter so that the MPC draws their text.
             width, xs = SEGMENTS[len(ctl.param.choices)]
             for ci, (choice, x) in enumerate(zip(ctl.param.choices, xs)):
                 children.append(entry("%s seg %d" % (ctl.param.name, ci), "Label",
-                                      label_data("Text", style["text"], 22.0, "horizontallyCentred verticallyCentred", choice),
-                                      "%d %d %d 40" % (SLOT_X[col] + x, SLOT_Y[row] + 54, width),
-                                      "No", "Hide", "Always", invalidating=invalidating))
+                                      label_data("Text", style["text"], 18.0, "horizontallyCentred verticallyCentred",
+                                                 choice, ctl.param.handle),
+                                      "%d %d %d %d" % (SLOT_X[col] + x - 6, SLOT_Y[row] + CAPTION_Y, width + 12,
+                                                       SEGMENT_Y - CAPTION_Y),
+                                      "No", show, "Always", invalidating=invalidating))
     return component_definition([], children, style["background"])
 
 
