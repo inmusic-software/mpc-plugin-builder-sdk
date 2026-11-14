@@ -705,6 +705,22 @@ static std::vector<std::string> orderedDistinct(const std::vector<std::string>& 
 static ParamKind inferParamKind(AEffect* e, int i)
 {
     ParamKind pk;
+
+    // A plugin that declares a parameter continuous (properties answered, neither a switch nor
+    // integer-stepped, which is how the SDK framework reports Float parameters) is float, whatever
+    // its display text looks like. Probing alone misreads a continuous parameter whose text is
+    // state-dependent, e.g. a time knob that shows note divisions while tempo-synced.
+    {
+        VstParameterProperties props;
+        std::memset(&props, 0, sizeof(props));
+        if (disp(e, effGetParameterProperties, i, 0, &props) == 1
+            && (props.flags & (kVstParameterIsSwitch | kVstParameterUsesIntStep)) == 0)
+        {
+            pk.kind = "float";
+            return pk;
+        }
+    }
+
     float original = getParam(e, i);
 
     std::vector<std::string> fine32 = probeDisplays(e, i, 32);
@@ -1249,22 +1265,39 @@ static int runTest(const std::string& path, const TestOptions& opt)
             setPhase("effSetChunk");
             VstIntPtr ok = disp(e, effSetChunk, 0, n, saved.data());
             r.run("render (after effSetChunk)", 2.0 * opt.block / opt.sr, opt.block, none, !instrument, false, false, nullptr);
-            int bad = 0, quant = 0;
+            int bad = 0, quant = 0, meters = 0;
+            std::string meterNames;
             for (int i = 0; i < numParams; ++i)
             {
                 float now = getParam(e, i);
                 if (std::fabs(now - savedVals[(size_t)i]) <= 1e-4f) continue;
                 if (getStr(e, effGetParamDisplay, i) == savedText[(size_t)i]) { ++quant; continue; }
+                if (disp(e, effCanBeAutomated, i) == 0)
+                {
+                    // A parameter the host cannot automate and that does not come back is normally a meter or
+                    // other read-out the plugin writes itself; that is legitimate, but say so.
+                    ++meters;
+                    if (meters <= 3)
+                        meterNames += (meters > 1 ? ", " : "") + p.paramNames[(size_t)i];
+                    else if (meters == 4)
+                        meterNames += ", ...";
+                    continue;
+                }
                 ++bad;
                 if (bad <= 5)
                     rep.fail("param %d \"%s\": saved %.5f but after effSetChunk it is %.5f (\"%s\")", i,
                              p.paramNames[(size_t)i].c_str(), (double)savedVals[(size_t)i], (double)now,
                              getStr(e, effGetParamDisplay, i).c_str());
             }
+            if (meters)
+                rep.warn("%d parameter(s) are not automatable and did not come back from the chunk (%s) - "
+                         "fine if the plugin writes them itself (meters and displays), otherwise they lose "
+                         "their values", meters, meterNames.c_str());
             if (ok == 0) rep.info("effSetChunk returned 0 (the MPC ignores the return value)");
             if (bad) rep.fail("state round-trip: %d parameter(s) did not come back from the saved chunk", bad);
-            else rep.pass("state round-trip: all %d parameters restored from the chunk%s", numParams,
-                          quant ? " (discrete values quantised, text identical)" : "");
+            else rep.pass("state round-trip: all %d parameters restored from the chunk%s%s", numParams - meters,
+                          quant ? " (discrete values quantised, text identical)" : "",
+                          meters ? " (not counting the read-only parameter(s) above)" : "");
 
             void* again = nullptr;
             VstIntPtr n2 = disp(e, effGetChunk, 0, 0, &again);

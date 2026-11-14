@@ -190,6 +190,7 @@ struct Param
     bool  logarithmic = false;
     int   decimals = 2;
     bool  automatable = true;
+    bool  saved = true;      // false for a value the plugin writes itself (a meter): kept out of saved state
     std::vector<std::string> choices;   // for Kind::Choice
 
     // --- mapping between the 0..1 host range and real ("plain") values -------
@@ -494,9 +495,12 @@ public:
         auto putF32 = [&out](float f) { uint32_t v; std::memcpy(&v, &f, 4); for (int i = 0; i < 4; ++i) out.push_back((uint8_t)(v >> (8 * i))); };
         out.push_back('M'); out.push_back('P'); out.push_back('C'); out.push_back('P');
         putU32(2);
-        putU32((uint32_t)params_.size());
+        uint32_t saved = 0;
+        for (int i = 0; i < numParams(); ++i) if (params_[(size_t)i].saved) ++saved;
+        putU32(saved);
         for (int i = 0; i < numParams(); ++i)
         {
+            if (!params_[(size_t)i].saved) continue;
             const std::string& id = params_[(size_t)i].id;
             out.push_back((uint8_t)clamp<size_t>(id.size(), 0, 255));
             for (size_t k = 0; k < id.size() && k < 255; ++k) out.push_back((uint8_t)id[k]);
@@ -558,6 +562,10 @@ public:
         const Program& p = programs_[(size_t)i];
         for (int k = 0; k < numParams() && k < (int)p.plainValues.size(); ++k) set(k, p.plainValues[(size_t)k]);
         stateLoadPending_.store(true, std::memory_order_release);
+        // The MPC caches parameter values for its UI and does not re-read them after a program change,
+        // so report every value and ask it to refresh, or the screen keeps showing the previous program.
+        for (int k = 0; k < numParams(); ++k) notifyHostParameterChanged(k);
+        requestDisplayUpdate();
     }
 
     std::string displayText(int i)
