@@ -1,0 +1,27 @@
+name: Build Acid Box
+
+on:
+  push:
+    branches: [acid-box]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build Acid Box for MPC (arm32 + arm64 + native) and validate
+        run: python tools/build.py "plugins/Acid Box"
+      - name: Run the host simulator test
+        run: .sdk-tools/host_sim "plugins/Acid Box/build/native/acid-box.so" test --seconds 3 --notes 36,38,43
+      - name: Package
+        run: python tools/package.py "plugins/Acid Box"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RS-VST-Acid-Box
+          path: |
+            plugins/Acid Box/build/RS - VST - Acid Box
+            plugins/Acid Box/dist/*.zip

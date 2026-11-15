@@ -1,0 +1,17 @@
+{
+  "name": "Acid Box",
+  "manufacturer": "RS",
+  "version": "1.0.0",
+  "format": "vst2",
+  "kind": "instrument",
+  "uid": "R7y3",
+  "numInputs": 0,
+  "numOutputs": 2,
+  "category": "Synth",
+  "file32": "VST/acid-box-arm32.so",
+  "file64": "VST/acid-box-arm64.so",
+  "description": "Acid Box: a monophonic acid bass synth with a resonant 18 dB/oct ladder filter, accent and slide.",
+  "author": "RS",
+  "url": "",
+  "license": "MIT"
+}

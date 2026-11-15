@@ -1,0 +1,27 @@
+{
+  "kit": "amber",
+  "pages": [
+    { "name": "ACID",
+      "controls": [
+        { "param": "Cutoff",     "widget": "knob" },
+        { "param": "Reso",       "widget": "knob" },
+        { "param": "Env Mod",    "widget": "knob" },
+        { "param": "Decay",      "widget": "knob" },
+        { "param": "Accent",     "widget": "knob" },
+        { "param": "Drive",      "widget": "knob" },
+        { "param": "Slide Time", "widget": "knob" },
+        { "param": "Slide",      "widget": "switch" },
+        { "param": "Wave",       "widget": "switch" },
+        { "param": "Volume",     "widget": "fader" },
+        { "widget": "empty" },
+        { "widget": "empty" }
+      ] },
+    { "name": "MORE",
+      "controls": [
+        { "param": "Tune",       "widget": "knob", "polarity": "bipolar" },
+        { "param": "Octave",     "widget": "knob", "polarity": "bipolar" },
+        { "param": "Acc Thresh", "widget": "knob" },
+        { "param": "Gate Rel",   "widget": "knob" }
+      ] }
+  ]
+}
