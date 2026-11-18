@@ -14,9 +14,12 @@ Every plugin is one folder, named after the manufacturer and plugin name:
 │   ├── <slug>-arm32.so      32-bit ARM build (MPC X, Live, Live II, One, One+, Key 61, Key 37, Force)
 │   └── <slug>-arm64.so      64-bit ARM build (MPC Live III, MPC XL and later 64-bit products)
 ├── Content/                 optional: your own files (samples, wavetables, impulse responses, presets data)
+├── Presets/                 optional: *.xpl preset files, the MPC's patch browser (the SDK writes them)
 └── Plugin Skins/            optional: the touch-screen UI and knob mapping
     ├── TUI.json
     ├── Q-Links.json
+    ├── browser_images/
+    │   └── soundsmode.png   270x110 thumbnail shown in the Sounds browser
     └── *.png                images referenced by TUI.json
 ```
 
@@ -142,9 +145,13 @@ The touch UI (`TUI.json`) and knob mapping (`Q-Links.json`). Both optional: with
 
 Hardware-specific variants are allowed, for example `Q-Links - 8by1.json` for the Force's 8-in-a-row knob layout; the most specific matching file wins.
 
+## Browser thumbnail
+
+The MPC's Sounds browser shows a picture for each instrument: a 270 x 110 PNG at `Plugin Skins/browser_images/soundsmode.png`. Without it the instrument gets a plain tile with only its name. `tools/build.py` puts one there for you: your project's `thumbnail.png` (270 x 110) if it has one, otherwise a banner drawn by `tools/make_thumbnail.py` from the plugin name, manufacturer and UI accent colour. A `soundsmode.png` supplied through `skins/` or `assets/browser_images/` wins over both.
+
 ## Presets
 
-Optional. The reliable way to ship presets is built-in programs in code (`addProgram` in the framework), which the MPC lists in its preset popup and stores by number in projects. See `presets.md` for that and for the MPC's `.xpl` preset file format.
+Optional. Built-in programs in code (`addProgram` in the framework) are listed in the MPC's preset popup and stored by number in projects. `tools/build.py` also writes one `Presets/NNN-[Category-]Name.xpl` per program, which is what fills the Sounds browser's patch list. See `presets.md`.
 
 ## Packaging for distribution
 

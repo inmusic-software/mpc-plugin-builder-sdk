@@ -802,6 +802,29 @@ static std::string jsonStringArray(const std::vector<std::string>& v)
 // dump
 // ===========================================================================
 
+static std::string base64Encode(const std::vector<uint8_t>& in)
+{
+    static const char* tbl = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string out;
+    size_t i = 0;
+    for (; i + 2 < in.size(); i += 3)
+    {
+        uint32_t v = ((uint32_t)in[i] << 16) | ((uint32_t)in[i + 1] << 8) | in[i + 2];
+        out += tbl[(v >> 18) & 63]; out += tbl[(v >> 12) & 63]; out += tbl[(v >> 6) & 63]; out += tbl[v & 63];
+    }
+    if (i + 1 == in.size())
+    {
+        uint32_t v = (uint32_t)in[i] << 16;
+        out += tbl[(v >> 18) & 63]; out += tbl[(v >> 12) & 63]; out += "==";
+    }
+    else if (i + 2 == in.size())
+    {
+        uint32_t v = ((uint32_t)in[i] << 16) | ((uint32_t)in[i + 1] << 8);
+        out += tbl[(v >> 18) & 63]; out += tbl[(v >> 12) & 63]; out += tbl[(v >> 6) & 63]; out += '=';
+    }
+    return out;
+}
+
 static int runDump(const std::string& path)
 {
     Report rep;
@@ -828,6 +851,22 @@ static int runDump(const std::string& path)
         en.automatable = p.automatable[(size_t)i];
         entries.push_back(en);
     }
+    // The state chunk of every program (base64), so tools can write preset files without a device.
+    std::vector<std::string> programChunks;
+    if (p.hasChunks)
+    {
+        setPhase("dump: reading program chunks");
+        int nProg = std::max(1, (int)e->numPrograms);
+        for (int i = 0; i < nProg; ++i)
+        {
+            disp(e, effSetProgram, 0, i);
+            void* ptr = nullptr;
+            VstIntPtr n = disp(e, effGetChunk, 0, 0, &ptr);
+            if (n > 0 && ptr) programChunks.push_back(base64Encode(std::vector<uint8_t>((const uint8_t*)ptr, (const uint8_t*)ptr + n)));
+            else programChunks.push_back(std::string());
+        }
+        disp(e, effSetProgram, 0, 0);
+    }
     setPhase("dump: probing parameter kinds");
     for (int i = 0; i < e->numParams; ++i) entries[(size_t)i].kind = inferParamKind(e, i);
 
@@ -841,6 +880,7 @@ static int runDump(const std::string& path)
            ", \"numOutputs\": " + std::to_string((long)e->numOutputs) +
            ", \"numPrograms\": " + std::to_string((long)std::max(1, (int)e->numPrograms)) + ",\n";
     out += "  \"programs\": " + jsonStringArray(p.programs) + ",\n";
+    out += "  \"programChunks\": " + jsonStringArray(programChunks) + ",\n";
     out += "  \"params\": [";
     for (size_t i = 0; i < entries.size(); ++i)
     {

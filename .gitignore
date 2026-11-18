@@ -1,6 +1,8 @@
 # Build outputs (per plugin project)
 build/
 dist/
+tmp/
+.idea/
 
 # Locally installed toolchain helpers (zig venv, host_sim binary, docker marker)
 .sdk-tools/
