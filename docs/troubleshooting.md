@@ -39,6 +39,37 @@ The MPC is 10–40× slower than a laptop. Reduce oversampling, voice count, per
 **Crash (exit code 2)**
 The report says which phase. Crashes in `prepare` are usually buffers sized from a block size of 0; crashes in `process` are usually out-of-range indices (voice arrays, delay lines, MIDI note numbers above 127, negative sample offsets).
 
+## After updating a plugin that is already installed
+
+**The new skin appears but the parameters are the old ones**
+New labels, headings and artwork, wrapped around the old behaviour: a choice list that should have
+changed still reads the old way, and a parameter you appended never updates. The files are almost
+certainly fine. A host maps the plugin binary once and keeps it for the life of the application
+session, so replacing the file on disk does not disturb the copy already running, and even a
+brand-new project reuses it. The skin is what misleads you: it is read from disk for each instance,
+while the parameter list comes from the binary that is already mapped. New look, old behaviour.
+
+Confirm the files once, cheaply, instead of searching them:
+
+- `.sdk-tools/host_sim <binary> dump` prints the parameter count, names, choices and current display
+  text exactly as a host sees them. If the new parameter is in that list, the binary is fine.
+- `python3 tools/mpc_remote.py <ip> export <name> --out <dir>` fetches what is really on the device,
+  so you can checksum its `.so` against your build.
+
+Then make each host let go of the old copy:
+
+- **The MPC**: `python3 tools/mpc_remote.py <ip> restart --yes`. A track that already had the plugin
+  needs it removed and re-added afterwards.
+- **FL Studio and other desktop hosts**: quit the application completely and relaunch. Closing the
+  project is not enough. FL rescans its plugin database on its own and records the new file, so it
+  looks up to date while still behaving old; rescanning is not the fix.
+
+Two things that look like evidence and are not. `strings` on an ARM `.so` will not show short choice
+labels such as `Forever` or `Mirror`, because AArch64 builds short strings from instruction
+immediates rather than storing them as text, so their absence proves nothing. And a stale duplicate
+of the plugin on another drive is worth ruling out with `mpc_remote.py <ip> list --drive N`, but is
+rarely the cause.
+
 ## On the MPC
 
 **The plugin does not appear in the browser**
