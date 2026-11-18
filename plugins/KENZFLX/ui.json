@@ -1,0 +1,27 @@
+{
+  "kit": "cyan",
+  "pages": [
+    {
+      "name": "COLOR",
+      "controls": [
+        { "param": "Output", "widget": "fader" },
+        { "param": "Drive", "widget": "knob" },
+        { "param": "Warmth", "widget": "knob" },
+        { "param": "Tone", "widget": "knob" },
+        { "param": "Mix", "widget": "fader" },
+        { "param": "Input Gain", "widget": "knob" }
+      ]
+    },
+    {
+      "name": "FX",
+      "controls": [
+        { "param": "Chorus", "widget": "knob" },
+        { "param": "Delay", "widget": "knob" },
+        { "param": "Reverb", "widget": "knob" },
+        { "param": "Crush", "widget": "knob" },
+        { "param": "Reverse", "widget": "knob" }
+      ]
+    }
+  ],
+  "style": { "background": "ff1e1d1e", "accent": "ffd31145", "text": "ffffffff", "muted": "ff6a6a6c" }
+}
