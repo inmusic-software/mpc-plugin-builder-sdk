@@ -19,13 +19,17 @@ Options: `--target native|arm32|arm64|desktop|all`, `--debug`, `--no-ui`, `--no-
 
 ### Desktop VST2 (`--target desktop`)
 
-`python tools/build.py plugins/<Name> --target desktop` builds the same plugin as a generic VST2 for the computer you are on, so it can be loaded in a desktop VST2 host (Reaper, MPC Software, and so on). It does not build the MPC folder. There is no UI: the host shows its own parameter list (the MPC `Plugin Skins` are not used).
+`python tools/build.py plugins/<Name> --target desktop` builds the same plugin as a VST2 for the computer you are on, so it can be loaded in a desktop VST2 host (FL Studio, Reaper, MPC Software, and so on). It does not build the MPC folder. Logic will not load it: Logic takes Audio Units only, and there is no AU build.
 
-- **macOS**: `build/desktop/<Name>.vst`, a universal (arm64 + x86_64) bundle, ad-hoc signed, exporting both `VSTPluginMain` and `main_macho`. Copy it to `~/Library/Audio/Plug-Ins/VST/`. Needs Apple's command line tools (`xcode-select --install`) for the universal build; otherwise it falls back to a build for this CPU only.
+**On macOS the plugin draws its own panel** - the same one the MPC shows. The skin is copied into the bundle and `framework/desktop/mpc_editor_mac.mm` renders `TUI.json` with AppKit: film-strip knobs and pills, tabs, value readouts, drag and scroll to turn a control, and the components that hide themselves when another parameter says so. It is the MPC's own skin file being drawn, not a copy of the layout, so the two cannot drift apart. The MPC's fonts are not on a desktop machine, so labels come out in the system face at the right size, and the big edit overlay you get from double-tapping on the MPC is not drawn. Windows and Linux have no renderer yet, so there the host shows its own parameter list.
+
+- **macOS**: `build/desktop/<Name>.vst`, a universal (arm64 + x86_64) bundle, ad-hoc signed, exporting both `VSTPluginMain` and `main_macho`. Needs Apple's command line tools (`xcode-select --install`) for the universal build and for the panel; without them it falls back to this CPU only and no panel.
+  - **Where to copy it is the part that catches people out.** `/Library/Audio/Plug-Ins/VST/` is for all users and needs `sudo`; `~/Library/Audio/Plug-Ins/VST/` is just you. Hosts do not necessarily search both: FL Studio 2026 searches the system folder and its own but not the user one, although it does search the user VST3 folder, so a plugin dropped there is never looked at and the rescan reports nothing rather than an error. Either install system-wide or add the user folder to the host's plugin search paths. If a host does not list the plugin, read its own scan log before suspecting the build.
 - **Windows**: `build/desktop/<Name>/<slug>.dll` (64-bit) with `plugin.json` and `Content/` beside it. Copy the whole folder into the host's VST2 folder.
 - **Linux**: `build/desktop/<Name>/<slug>.so`, same layout; copy it to `~/.vst`.
 - `Content/` goes with the plugin (inside the bundle's `Contents/Resources` on macOS), and `mpc_resources.h` finds it there.
-- The desktop build is for a quick listen and for hosts like Reaper; many current hosts have dropped VST2, so check yours. The Windows and Linux outputs are cross-compile-checked only; the macOS bundle has been run through `host_sim`.
+- The skin is taken from the project's `skins/` folder if it has one, and generated with `gen_ui.py` otherwise, exactly as for the MPC build. A generated skin needs `build/params.json`, so if there is none the desktop build makes one first. `--no-ui` skips the panel; the plugin then reports no editor at all and the host shows its own parameter list.
+- Many current hosts have dropped VST2, so check yours. The Windows and Linux outputs are cross-compile-checked only; the macOS bundle has been run through `host_sim` and its panel driven by synthetic clicks and drags.
 
 ## Toolchain: zig (default, recommended)
 

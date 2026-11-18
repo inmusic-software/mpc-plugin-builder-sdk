@@ -23,6 +23,7 @@
 
 #include "mpc_vst2_abi.h"
 #include "mpc_resources.h"
+#include "mpc_editor.h"
 
 #include <atomic>
 #include <cstdarg>
@@ -409,6 +410,10 @@ public:
     // ----- glue, used by the dispatcher below (do not call yourself) -------
     AEffect* effect_ = nullptr;
     audioMasterCallback host_ = nullptr;
+#if MPC_HAS_EDITOR
+    void* editor_ = nullptr;        // the open desktop editor, or null
+    ERect editorRect_ = {};
+#endif
 
     void internalSetSampleRate(double sr) { sampleRate_ = sr; prepared_ = false; }
     void internalSetBlockSize(int bs) { blockSize_ = bs; prepared_ = false; }
@@ -641,6 +646,75 @@ namespace detail {
 
 inline Plugin* self(AEffect* e) { return static_cast<Plugin*>(e->object); }
 
+#if MPC_HAS_EDITOR
+// The editor talks to the plugin through plain function pointers (see mpc_editor.h), so the
+// Objective-C++ side never has to know what a Plugin is.
+inline float editorGetParam(void* ctx, int index)
+{
+    Plugin* p = static_cast<Plugin*>(ctx);
+    return (p != nullptr && index >= 0 && index < p->numParams()) ? p->getNormalised(index) : 0.0f;
+}
+inline void editorSetParam(void* ctx, int index, float value)
+{
+    Plugin* p = static_cast<Plugin*>(ctx);
+    if (p == nullptr || index < 0 || index >= p->numParams()) return;
+    p->setNormalised(index, value);
+    // The host has to hear about it too, or the DAW never sees the knob move: no automation written,
+    // no value shown in its own generic view, nothing to undo.
+    p->notifyHostParameterChanged(index);
+}
+inline void editorCopy(const std::string& from, char* out, int cap)
+{
+    if (out == nullptr || cap <= 0) return;
+    const size_t n = from.size() < (size_t)(cap - 1) ? from.size() : (size_t)(cap - 1);
+    std::memcpy(out, from.data(), n);
+    out[n] = '\0';
+}
+inline void editorGetDisplay(void* ctx, int index, char* out, int cap)
+{
+    Plugin* p = static_cast<Plugin*>(ctx);
+    editorCopy(p != nullptr && index >= 0 && index < p->numParams() ? p->displayText(index) : std::string(),
+               out, cap);
+}
+inline void editorGetName(void* ctx, int index, char* out, int cap)
+{
+    Plugin* p = static_cast<Plugin*>(ctx);
+    editorCopy(p != nullptr && index >= 0 && index < p->numParams() ? p->param(index).name : std::string(),
+               out, cap);
+}
+// How many settings a switch has. A skin's buttons say which one they stand for, but not how many there
+// are in all - a single on/off pill reports a group of one - so the parameter itself has to say.
+inline int editorGetSteps(void* ctx, int index)
+{
+    Plugin* p = static_cast<Plugin*>(ctx);
+    if (p == nullptr || index < 0 || index >= p->numParams()) return 0;
+    const Param& prm = p->param(index);
+    if (!prm.choices.empty()) return (int)prm.choices.size();
+    return prm.kind == Param::Kind::Bool ? 2 : 0;
+}
+
+inline void editorGetUnit(void* ctx, int index, char* out, int cap)
+{
+    Plugin* p = static_cast<Plugin*>(ctx);
+    editorCopy(p != nullptr && index >= 0 && index < p->numParams() ? p->param(index).unit : std::string(),
+               out, cap);
+}
+
+// "<plugin folder>/Plugin Skins". In a desktop .vst bundle the plugin folder is Contents/Resources,
+// which is where tools/build.py puts the skin.
+inline std::string editorSkinDir()
+{
+    const std::string& folder = pluginFolder();
+    return folder.empty() ? std::string() : folder + "/Plugin Skins";
+}
+
+inline bool editorSkinSize(int& w, int& h)
+{
+    const std::string dir = editorSkinDir();
+    return !dir.empty() && editor::size(dir.c_str(), &w, &h);
+}
+#endif // MPC_HAS_EDITOR
+
 inline VstIntPtr dispatcher(AEffect* e, VstInt32 opcode, VstInt32 index, VstIntPtr value, void* ptr, float opt)
 {
     Plugin* p = self(e);
@@ -710,7 +784,45 @@ inline VstIntPtr dispatcher(AEffect* e, VstInt32 opcode, VstInt32 index, VstIntP
         case effStartProcess: case effStopProcess: return 0;
         case effSetProcessPrecision: return value == kVstProcessPrecision32 ? 1 : 0;
 
+#if MPC_HAS_EDITOR
+        case effEditGetRect:
+        {
+            if (ptr == nullptr) return 0;
+            int w = 0, h = 0;
+            if (!editorSkinSize(w, h)) return 0;
+            p->editorRect_.left = 0;
+            p->editorRect_.top = 0;
+            p->editorRect_.right = (VstInt16)w;
+            p->editorRect_.bottom = (VstInt16)h;
+            *static_cast<ERect**>(ptr) = &p->editorRect_;
+            return 1;
+        }
+        case effEditOpen:
+        {
+            if (p->editor_ != nullptr) return 1;
+            const std::string dir = editorSkinDir();
+            if (dir.empty()) return 0;
+            editor::Host host;
+            host.ctx = p;
+            host.numParams = p->numParams();
+            host.getParam = &editorGetParam;
+            host.setParam = &editorSetParam;
+            host.getDisplay = &editorGetDisplay;
+            host.getName = &editorGetName;
+            host.getUnit = &editorGetUnit;
+            host.getSteps = &editorGetSteps;
+            p->editor_ = editor::open(dir.c_str(), ptr, host);
+            return p->editor_ != nullptr ? 1 : 0;
+        }
+        case effEditClose:
+            if (p->editor_ != nullptr) { editor::close(p->editor_); p->editor_ = nullptr; }
+            return 0;
+        case effEditIdle:
+            if (p->editor_ != nullptr) editor::idle(p->editor_);
+            return 0;
+#else
         case effEditGetRect: case effEditOpen: case effEditClose: case effEditIdle: return 0;
+#endif
 
         case effGetChunk:
         {
@@ -771,6 +883,7 @@ inline void processReplacing(AEffect* e, float** in, float** out, VstInt32 frame
     if (p != nullptr && frames > 0) p->internalProcess(in, out, (int)frames);
 }
 
+
 inline void setParameter(AEffect* e, VstInt32 index, float value)
 {
     Plugin* p = self(e); if (p != nullptr) p->setNormalised((int)index, value);
@@ -797,6 +910,14 @@ inline AEffect* createEffect(Plugin* plugin, audioMasterCallback host)
     e->numInputs = info.numInputs;
     e->numOutputs = info.numOutputs;
     e->flags = effFlagsCanReplacing | effFlagsProgramChunks | (info.isInstrument ? effFlagsIsSynth : 0);
+#if MPC_HAS_EDITOR
+    // Only claim an editor if there really is a skin to draw; an empty plugin window is worse than the
+    // host's own parameter list.
+    {
+        int w = 0, h = 0;
+        if (editorSkinSize(w, h)) e->flags |= effFlagsHasEditor;
+    }
+#endif
     e->initialDelay = info.latencySamples;
     e->ioRatio = 1.0f;
     e->object = plugin;
