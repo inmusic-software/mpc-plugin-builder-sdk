@@ -39,6 +39,15 @@ SDK_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOOLS_DIR = os.path.join(SDK_ROOT, "tools")
 FRAMEWORK_DIR = os.path.join(SDK_ROOT, "framework")
 SDK_TOOLS_DIR = os.path.join(SDK_ROOT, ".sdk-tools")
+
+
+def sdk_version():
+    """The SDK version from <sdk>/VERSION (e.g. "1.1" or "1.2-dev"), or "unknown" if the file is missing."""
+    try:
+        with open(os.path.join(SDK_ROOT, "VERSION")) as f:
+            return f.read().strip() or "unknown"
+    except OSError:
+        return "unknown"
 EXPORTS_MAP = os.path.join(TOOLS_DIR, "exports.map")
 HOST_SIM_SRC = os.path.join(TOOLS_DIR, "host-sim", "host_sim.cpp")
 DOCKER_DIR = os.path.join(TOOLS_DIR, "docker")
@@ -768,6 +777,7 @@ def parse_args(argv):
     ap = argparse.ArgumentParser(
         description="Build an MPC plugin project into a deployable '<Manufacturer> - VST - <Name>' folder.",
         epilog="Environment: ZIG=<path to zig, or to a python that has 'pip install ziglang'> selects a zig to use.")
+    ap.add_argument("--version", action="version", version="MPC Plugin SDK " + sdk_version())
     ap.add_argument("project", help="plugin project folder (contains plugin.json and src/)")
     ap.add_argument("--target", choices=["all", "arm32", "arm64", "native", "desktop"], default="all",
                     help="what to build (default: all = native + arm32 + arm64 + output folder; desktop = a generic "
@@ -804,6 +814,7 @@ def main(argv=None):
         native_lib = os.path.join(build_dir, "native", slug + native_ext)
 
         log("Building %s by %s  (%s)" % (manifest["name"], manifest["manufacturer"], project))
+        log("  MPC Plugin SDK %s" % sdk_version())
         log("  toolchain: %s   target: %s   %s" % (args.toolchain, args.target, "debug" if args.debug else "release"))
 
         builder = Builder(args, project, manifest)

@@ -2,6 +2,13 @@
 
 All notable changes to the MPC Plugin SDK are recorded here, newest first.
 
+## Unreleased (will become 1.2)
+
+### Added
+
+- **`VERSION` file** at the SDK root holding the SDK version. `python tools/build.py --version`
+  prints it, and every build logs it, so you can tell which SDK a plugin was built with.
+
 ## 1.1
 
 ### Added
