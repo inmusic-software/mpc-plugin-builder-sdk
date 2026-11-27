@@ -283,6 +283,9 @@ def zig_install_help():
             "  * or use --toolchain gcc (needs arm-linux-gnueabihf-g++ and aarch64-linux-gnu-g++) or --toolchain docker")
 
 
+EDITOR_SRC_MAC = os.path.join(FRAMEWORK_DIR, "desktop", "mpc_editor_mac.mm")
+
+
 def find_system_cxx():
     for name in ("c++", "g++", "clang++"):
         p = shutil.which(name)
@@ -449,16 +452,35 @@ class Builder:
             binary = os.path.join(bundle, "Contents", "MacOS", slug)
             content_dst = os.path.join(bundle, "Contents", "Resources")
             clang = find_system_cxx()
+
+            # The skin goes in first: whether there is one decides whether the plugin gets an editor.
+            # In a .vst bundle mpc::pluginFolder() resolves to Contents/Resources, so that is where the
+            # plugin looks for "Plugin Skins" at run time, exactly as it does on the MPC.
+            os.makedirs(content_dst, exist_ok=True)
+            shutil.copyfile(os.path.join(self.project, "plugin.json"),
+                            os.path.join(content_dst, "plugin.json"))
+            sources = list(self.sources)
+            if self.desktop_skin(content_dst):
+                if clang:
+                    log("  [desktop] drawing the MPC skin (editor enabled)")
+                    flags = flags + ["-DMPC_DESKTOP_EDITOR", "-fobjc-arc"]
+                    sources = sources + [EDITOR_SRC_MAC]
+                    flags = flags + ["-framework", "Cocoa"]
+                else:
+                    warn("no Apple clang found, so the plugin is built without its panel; the host will "
+                         "show its own parameter list (install the Xcode command line tools: "
+                         "xcode-select --install)")
+
             universal = [a for a in flags if a != "-shared"] + ["-bundle", "-arch", "arm64", "-arch", "x86_64"]
-            if clang and self.compile_try("desktop", clang + universal + ["-o", binary] + self.sources, binary):
+            if clang and self.compile_try("desktop", clang + universal + ["-o", binary] + sources, binary):
                 pass
             else:
                 if clang:
                     warn("the universal (arm64 + x86_64) macOS build failed; building for this CPU only")
-                if self.toolchain == "zig":
-                    argv = self.zig + ["c++"] + flags + ["-o", binary] + self.sources
+                if self.toolchain == "zig" and EDITOR_SRC_MAC not in sources:
+                    argv = self.zig + ["c++"] + flags + ["-o", binary] + sources
                 elif clang:
-                    argv = clang + flags + ["-dynamiclib", "-o", binary] + self.sources
+                    argv = clang + flags + ["-dynamiclib", "-o", binary] + sources
                 else:
                     raise BuildError("no C++ compiler found for the desktop build (install Xcode command line tools: xcode-select --install)")
                 self.compile("desktop", argv, binary)
@@ -496,6 +518,25 @@ class Builder:
         if n:
             log("  copied %d file%s from Content/" % (n, "" if n == 1 else "s"))
         return result
+
+    def desktop_skin(self, resources_dir):
+        """Put "Plugin Skins" in the bundle, the same skin the MPC would get. True if there is one.
+
+        A hand-written skins/ folder needs nothing else. A generated skin needs build/params.json, so if
+        that is missing this builds it first - a desktop build on a fresh checkout should not silently
+        come out with no panel."""
+        if self.args.no_ui:
+            return False
+        params_json = os.path.join(self.project, "build", "params.json")
+        if not os.path.isdir(os.path.join(self.project, "skins")) and not os.path.isfile(params_json):
+            slug = make_slug(self.manifest["name"])
+            native = os.path.join(self.project, "build", "native",
+                                  slug + (".dylib" if IS_MAC else (".dll" if IS_WINDOWS else ".so")))
+            log("  [desktop] no skins/ and no build/params.json yet; building natively to generate one")
+            if not self.build_native(native) or not self.dump_params(native, params_json):
+                warn("could not generate build/params.json, so the plugin is built without its panel")
+                return False
+        return make_skins(self.project, resources_dir, params_json, False)
 
     def compile_try(self, label, argv, output):
         """Like compile() but returns False instead of raising (compiler messages are shown at -v only)."""
@@ -825,12 +866,15 @@ def main(argv=None):
             log("=" * 72)
             log("Desktop build finished: %s" % result)
             if IS_MAC:
-                log("  Copy the .vst to ~/Library/Audio/Plug-Ins/VST/ (or /Library/Audio/Plug-Ins/VST/), then rescan plugins in your host.")
+                log("  Copy the .vst into a VST2 folder your host actually searches, then rescan plugins.")
+                log("    /Library/Audio/Plug-Ins/VST/   all users (needs sudo); searched by every host")
+                log("    ~/Library/Audio/Plug-Ins/VST/  just you; some hosts (FL Studio) do not search this")
+                log("    by default, so add it to the host's plugin search paths if you use it.")
             elif IS_WINDOWS:
                 log("  Copy the folder into your host's VST2 plugin folder (e.g. C:\\Program Files\\VSTPlugins), then rescan plugins.")
             else:
                 log("  Copy the folder into ~/.vst (or your host's VST2 folder), then rescan plugins.")
-            log("  There is no touch UI: the host shows its own parameter list. Only VST2 hosts will load it (Reaper, MPC Software, ...).")
+            log("  Only VST2 hosts will load it (FL Studio, Reaper, MPC Software, ...); Logic is Audio Units only.")
             return finish(0)
         arm_targets = [] if args.target == "native" else (["arm32", "arm64"] if args.target == "all" else [args.target])
         total = 2 + len(arm_targets) + (3 if arm_targets else 0)
