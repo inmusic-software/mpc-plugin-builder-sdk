@@ -2,7 +2,7 @@
 
 All notable changes to the MPC Plugin SDK are recorded here, newest first.
 
-## Unreleased (will become 1.1)
+## 1.1
 
 ### Added
 
