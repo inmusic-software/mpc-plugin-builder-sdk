@@ -20,7 +20,7 @@ No. Instruments receive MIDI; effects do not; MIDI output from plugins is discar
 
 ## Can I ship presets?
 
-Built-in programs declared in code are shown in the MPC's preset list. See `docs/presets.md`.
+Yes. Built-in programs declared in code are shown in the MPC's preset list, and the build also writes them as `Presets/*.xpl` files for the patch browser. See `docs/presets.md`.
 
 ## Can I sell my plugin?
 
